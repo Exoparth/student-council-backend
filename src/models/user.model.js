@@ -21,6 +21,16 @@ const userSchema = new mongoose.Schema({
         type:String,
         enum:["student","admin"],
         default:"student"
+    },
+
+    profilePicture:{
+        type:String,
+        default:null
+    },
+
+    collegeIdCard:{
+        type:String,
+        default:null
     }
 
 },{timestamps:true})

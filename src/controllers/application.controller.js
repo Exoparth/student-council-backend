@@ -1,44 +1,56 @@
-const Application = require('../models/application.model');
+const Application = require("../models/application.model");
 
 async function applyForCouncil(req,res){
 
-    const studentId = req.user.id;
+  const studentId = req.user.id;
+  const { position } = req.body;
 
-    const data = req.body;
+  const applications = await Application.find({
+    student: studentId
+  });
 
-    // ✅ Check if student already applied
-    const existing = await Application.findOne({ student: studentId });
+  // Max 3 applications
+  if(applications.length >= 3){
+    return res.status(400).json({
+      message:"You can apply for maximum 3 positions only"
+    });
+  }
 
-    if(existing){
-        return res.status(400).json({
-            message:"You have already applied for the council"
-        })
-    }
+  // Prevent duplicate position
+  const alreadyApplied = applications.find(
+    app => app.position.toLowerCase() === position.toLowerCase()
+  );
 
-    // ✅ Create application
-    const application = await Application.create({
-        student:studentId,
-        ...data
-    })
+  if(alreadyApplied){
+    return res.status(400).json({
+      message:"You already applied for this position"
+    });
+  }
 
-    res.status(201).json({
-        message:"Application submitted",
-        application
-    })
+  const application = await Application.create({
+    student:studentId,
+    ...req.body
+  });
+
+  res.status(201).json({
+    message:"Application submitted",
+    application
+  });
+
 }
 
 async function getMyApplication(req,res){
 
-    const studentId = req.user.id;
+  const studentId = req.user.id;
 
-    const application = await Application.findOne({
-        student:studentId
-    })
+  const applications = await Application.find({
+    student:studentId
+  });
 
-    res.json(application)
+  res.json(applications);
 }
 
-module.exports={
-    applyForCouncil,
-    getMyApplication
-}
+module.exports = {
+  applyForCouncil,
+  getMyApplication
+};
