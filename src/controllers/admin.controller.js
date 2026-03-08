@@ -1,5 +1,5 @@
 const Application = require('../models/application.model');
-
+const sendEmail = require("../services/email.service");
 
 async function getAllApplications(req,res){
 
@@ -15,11 +15,7 @@ async function updateApplicationStatus(req,res){
 
     const {status} = req.body;
 
-    const allowedStatus = [
-        "pending",
-        "accepted",
-        "rejected"
-    ];
+    const allowedStatus = ["pending","accepted","rejected"];
 
     if(!allowedStatus.includes(status)){
         return res.status(400).json({
@@ -31,7 +27,6 @@ async function updateApplicationStatus(req,res){
         applicationStatus: status
     };
 
-    // if form rejected → interview should also be rejected
     if(status === "rejected"){
         updateData.interviewStatus = "rejected";
         updateData.interviewDate = null;
@@ -41,12 +36,43 @@ async function updateApplicationStatus(req,res){
         req.params.id,
         updateData,
         {new:true}
-    );
+    ).populate("student");
 
     if(!application){
         return res.status(404).json({
             message:"Application not found"
         })
+    }
+
+    const email = application.student.email;
+    const name = application.student.fullName;
+
+    if(status === "accepted"){
+
+        await sendEmail(
+            email,
+            "Application Approved",
+            `
+            <h2>Hello ${name}</h2>
+            <p>Your application for <b>${application.position}</b> has been <b>approved</b>.</p>
+            <p>You will soon receive interview details.</p>
+            `
+        );
+
+    }
+
+    if(status === "rejected"){
+
+        await sendEmail(
+            email,
+            "Application Rejected",
+            `
+            <h2>Hello ${name}</h2>
+            <p>We regret to inform you that your application for <b>${application.position}</b> has been rejected.</p>
+            <p>Thank you for applying.</p>
+            `
+        );
+
     }
 
     res.json({
@@ -61,7 +87,8 @@ async function scheduleInterview(req,res){
 
     const {date} = req.body;
 
-    const application = await Application.findById(req.params.id);
+    const application = await Application.findById(req.params.id)
+        .populate("student");
 
     if(!application){
         return res.status(404).json({
@@ -79,6 +106,19 @@ async function scheduleInterview(req,res){
 
     await application.save();
 
+    const email = application.student.email;
+    const name = application.student.fullName;
+
+    await sendEmail(
+        email,
+        "Interview Scheduled",
+        `
+        <h2>Hello ${name}</h2>
+        <p>Your interview for <b>${application.position}</b> has been scheduled.</p>
+        <p><b>Date:</b> ${new Date(date).toDateString()}</p>
+        `
+    );
+
     res.json({
         message:"Interview scheduled",
         application
@@ -91,11 +131,7 @@ async function updateInterviewStatus(req,res){
 
     const {status} = req.body;
 
-    const allowedStatus = [
-        "pending",
-        "shortlisted",
-        "rejected"
-    ];
+    const allowedStatus = ["pending","shortlisted","rejected"];
 
     if(!allowedStatus.includes(status)){
         return res.status(400).json({
@@ -107,7 +143,7 @@ async function updateInterviewStatus(req,res){
         req.params.id,
         {interviewStatus:status},
         {new:true}
-    )
+    ).populate("student");
 
     if(!application){
         return res.status(404).json({
@@ -115,12 +151,40 @@ async function updateInterviewStatus(req,res){
         })
     }
 
+    const email = application.student.email;
+    const name = application.student.fullName;
+
+    if(status === "shortlisted"){
+
+        await sendEmail(
+            email,
+            "Congratulations 🎉",
+            `
+            <h2>Hello ${name}</h2>
+            <p>Congratulations! You have been <b>selected</b> for the position of <b>${application.position}</b>.</p>
+            `
+        );
+
+    }
+
+    if(status === "rejected"){
+
+        await sendEmail(
+            email,
+            "Interview Result",
+            `
+            <h2>Hello ${name}</h2>
+            <p>Unfortunately you were not selected for the position of <b>${application.position}</b>.</p>
+            `
+        );
+
+    }
+
     res.json({
         message:"Interview result updated",
         application
     })
 }
-
 
 
 module.exports={
