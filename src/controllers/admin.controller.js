@@ -193,9 +193,24 @@ async function updateInterviewStatus(req, res) {
   });
 }
 
+async function deleteApplication(req, res) {
+  const application = await Application.findByIdAndDelete(req.params.id);
+
+  if (!application) {
+    return res.status(404).json({
+      message: "Application not found",
+    });
+  }
+
+  res.json({
+    message: "Application deleted successfully",
+  });
+}
+
 module.exports = {
   getAllApplications,
   updateApplicationStatus,
   scheduleInterview,
   updateInterviewStatus,
+  deleteApplication,
 };
