@@ -1,195 +1,201 @@
-const Application = require('../models/application.model');
+const Application = require("../models/application.model");
 const sendEmail = require("../services/email.service");
+const emailTemplate = require("../services/emailTemplate.service");
 
-async function getAllApplications(req,res){
+async function getAllApplications(req, res) {
+  const applications = await Application.find().populate(
+    "student",
+    "fullName email",
+  );
 
-    const applications = await Application.find()
-        .populate("student","fullName email")
-
-    res.json(applications)
+  res.json(applications);
 }
 
+async function updateApplicationStatus(req, res) {
+  const { status } = req.body;
 
+  const allowedStatus = ["pending", "accepted", "rejected"];
 
-async function updateApplicationStatus(req,res){
+  if (!allowedStatus.includes(status)) {
+    return res.status(400).json({
+      message: "Invalid application status",
+    });
+  }
 
-    const {status} = req.body;
+  const updateData = {
+    applicationStatus: status,
+  };
 
-    const allowedStatus = ["pending","accepted","rejected"];
+  if (status === "rejected") {
+    updateData.interviewStatus = "rejected";
+    updateData.interviewDate = null;
+  }
 
-    if(!allowedStatus.includes(status)){
-        return res.status(400).json({
-            message:"Invalid application status"
-        })
-    }
+  const application = await Application.findByIdAndUpdate(
+    req.params.id,
+    updateData,
+    { new: true },
+  ).populate("student");
 
-    const updateData = {
-        applicationStatus: status
-    };
+  if (!application) {
+    return res.status(404).json({
+      message: "Application not found",
+    });
+  }
 
-    if(status === "rejected"){
-        updateData.interviewStatus = "rejected";
-        updateData.interviewDate = null;
-    }
+  const email = application.student.email;
+  const name = application.student.fullName;
 
-    const application = await Application.findByIdAndUpdate(
-        req.params.id,
-        updateData,
-        {new:true}
-    ).populate("student");
-
-    if(!application){
-        return res.status(404).json({
-            message:"Application not found"
-        })
-    }
-
-    const email = application.student.email;
-    const name = application.student.fullName;
-
-    if(status === "accepted"){
-
-        await sendEmail(
-            email,
-            "Application Approved",
-            `
-            <h2>Hello ${name}</h2>
-            <p>Your application for <b>${application.position}</b> has been <b>approved</b>.</p>
-            <p>You will soon receive interview details.</p>
-            `
-        );
-
-    }
-
-    if(status === "rejected"){
-
-        await sendEmail(
-            email,
-            "Application Rejected",
-            `
-            <h2>Hello ${name}</h2>
-            <p>We regret to inform you that your application for <b>${application.position}</b> has been rejected.</p>
-            <p>Thank you for applying.</p>
-            `
-        );
-
-    }
-
-    res.json({
-        message:"Application status updated",
-        application
-    })
-}
-
-
-
-async function scheduleInterview(req,res){
-
-    const {date} = req.body;
-
-    const application = await Application.findById(req.params.id)
-        .populate("student");
-
-    if(!application){
-        return res.status(404).json({
-            message:"Application not found"
-        })
-    }
-
-    if(application.applicationStatus !== "accepted"){
-        return res.status(400).json({
-            message:"Application must be accepted before scheduling interview"
-        })
-    }
-
-    application.interviewDate = date;
-
-    await application.save();
-
-    const email = application.student.email;
-    const name = application.student.fullName;
-
+  if (status === "accepted") {
     await sendEmail(
-        email,
-        "Interview Scheduled",
-        `
-        <h2>Hello ${name}</h2>
-        <p>Your interview for <b>${application.position}</b> has been scheduled.</p>
-        <p><b>Date:</b> ${new Date(date).toDateString()}</p>
-        `
+      email,
+      "Application Approved",
+      emailTemplate({
+        title: "Application Approved",
+        statusColor: "#22c55e",
+        message: `
+      Hello <b>${name}</b>,<br/><br/>
+      Your application for <b>${application.position}</b> has been approved.
+      <br/><br/>
+      You will soon receive interview details.
+    `,
+      }),
     );
+  }
 
-    res.json({
-        message:"Interview scheduled",
-        application
-    })
+  if (status === "rejected") {
+    await sendEmail(
+      email,
+      "Application Rejected",
+      emailTemplate({
+        title: "Application Rejected",
+        statusColor: "#ef4444",
+        message: `
+      Hello <b>${name}</b>,<br/><br/>
+      We regret to inform you that your application for 
+      <b>${application.position}</b> has been rejected.
+      <br/><br/>
+      Thank you for applying.
+    `,
+      }),
+    );
+  }
+
+  res.json({
+    message: "Application status updated",
+    application,
+  });
 }
 
+async function scheduleInterview(req, res) {
+  const { date } = req.body;
 
+  const application = await Application.findById(req.params.id).populate(
+    "student",
+  );
 
-async function updateInterviewStatus(req,res){
+  if (!application) {
+    return res.status(404).json({
+      message: "Application not found",
+    });
+  }
 
-    const {status} = req.body;
+  if (application.applicationStatus !== "accepted") {
+    return res.status(400).json({
+      message: "Application must be accepted before scheduling interview",
+    });
+  }
 
-    const allowedStatus = ["pending","shortlisted","rejected"];
+  application.interviewDate = date;
 
-    if(!allowedStatus.includes(status)){
-        return res.status(400).json({
-            message:"Invalid interview status"
-        })
-    }
+  await application.save();
 
-    const application = await Application.findByIdAndUpdate(
-        req.params.id,
-        {interviewStatus:status},
-        {new:true}
-    ).populate("student");
+  const email = application.student.email;
+  const name = application.student.fullName;
 
-    if(!application){
-        return res.status(404).json({
-            message:"Application not found"
-        })
-    }
+  await sendEmail(
+    email,
+    "Interview Scheduled",
+    emailTemplate({
+      title: "Interview Scheduled",
+      statusColor: "#f59e0b",
+      message: `
+      Hello <b>${name}</b>,<br/><br/>
+      Your interview for <b>${application.position}</b> has been scheduled.
+      <br/><br/>
+      <b>Date:</b> ${new Date(date).toDateString()}
+    `,
+    }),
+  );
 
-    const email = application.student.email;
-    const name = application.student.fullName;
+  res.json({
+    message: "Interview scheduled",
+    application,
+  });
+}
 
-    if(status === "shortlisted"){
+async function updateInterviewStatus(req, res) {
+  const { status } = req.body;
 
-        await sendEmail(
-            email,
-            "Congratulations 🎉",
-            `
-            <h2>Hello ${name}</h2>
-            <p>Congratulations! You have been <b>selected</b> for the position of <b>${application.position}</b>.</p>
-            `
-        );
+  const allowedStatus = ["pending", "shortlisted", "rejected"];
 
-    }
+  if (!allowedStatus.includes(status)) {
+    return res.status(400).json({
+      message: "Invalid interview status",
+    });
+  }
 
-    if(status === "rejected"){
+  const application = await Application.findByIdAndUpdate(
+    req.params.id,
+    { interviewStatus: status },
+    { new: true },
+  ).populate("student");
 
-        await sendEmail(
-            email,
-            "Interview Result",
-            `
+  if (!application) {
+    return res.status(404).json({
+      message: "Application not found",
+    });
+  }
+
+  const email = application.student.email;
+  const name = application.student.fullName;
+
+  if (status === "shortlisted") {
+    await sendEmail(
+      email,
+      "Congratulations 🎉",
+      emailTemplate({
+        title: "Congratulations!",
+        statusColor: "#22c55e",
+        message: `
+      Hello <b>${name}</b>,<br/><br/>
+      Congratulations! You have been selected for the position of 
+      <b>${application.position}</b>.
+    `,
+      }),
+    );
+  }
+
+  if (status === "rejected") {
+    await sendEmail(
+      email,
+      "Interview Result",
+      `
             <h2>Hello ${name}</h2>
             <p>Unfortunately you were not selected for the position of <b>${application.position}</b>.</p>
-            `
-        );
+            `,
+    );
+  }
 
-    }
-
-    res.json({
-        message:"Interview result updated",
-        application
-    })
+  res.json({
+    message: "Interview result updated",
+    application,
+  });
 }
 
-
-module.exports={
-    getAllApplications,
-    updateApplicationStatus,
-    scheduleInterview,
-    updateInterviewStatus
-}
+module.exports = {
+  getAllApplications,
+  updateApplicationStatus,
+  scheduleInterview,
+  updateInterviewStatus,
+};
