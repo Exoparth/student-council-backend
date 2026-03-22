@@ -106,6 +106,21 @@ async function scheduleInterview(req, res) {
     });
   }
 
+  const interviewTime = new Date(date);
+  const startBuffer = new Date(interviewTime.getTime() - 15 * 60000);
+  const endBuffer = new Date(interviewTime.getTime() + 15 * 60000);
+
+  const overlappingInterview = await Application.findOne({
+    interviewDate: { $gt: startBuffer, $lt: endBuffer },
+    _id: { $ne: req.params.id },
+  });
+
+  if (overlappingInterview) {
+    return res.status(400).json({
+      message: "Cannot schedule. Another interview is scheduled within 15 minutes of this time.",
+    });
+  }
+
   application.interviewDate = date;
 
   await application.save();
@@ -123,7 +138,7 @@ async function scheduleInterview(req, res) {
       Hello <b>${name}</b>,<br/><br/>
       Your interview for <b>${application.position}</b> has been scheduled.
       <br/><br/>
-      <b>Date:</b> ${new Date(date).toDateString()}
+      <b>Date & Time:</b> ${new Date(date).toLocaleString()}
     `,
     }),
   );
