@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>API Galaxy — Student Council Backend</title>
+  <meta name="description" content="Interactive Milky Way galaxy map of all Student Council backend APIs."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#04060f;
+      --surface:rgba(15,20,40,0.92);
+      --border:rgba(255,255,255,0.07);
+      --text:#e2e8f0;
+      --muted:#64748b;
+    }
+    html,body{width:100%;height:100%;overflow:hidden;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text)}
+
+    /* ── CANVAS ── */
+    canvas{display:block;position:fixed;inset:0;z-index:0}
+
+    /* ── HEADER ── */
+    header{
+      position:fixed;top:0;left:0;right:0;z-index:50;
+      height:58px;display:flex;align-items:center;justify-content:space-between;
+      padding:0 1.6rem;
+      background:rgba(4,6,15,0.75);border-bottom:1px solid var(--border);
+      backdrop-filter:blur(18px);
+    }
+    .logo{display:flex;align-items:center;gap:9px;font-family:'Space Grotesk',sans-serif;font-size:1.2rem;font-weight:700}
+    .logo-icon{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:grid;place-items:center;font-size:.9rem}
+    .logo-text span{background:linear-gradient(90deg,#a78bfa,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .header-hint{font-size:.72rem;color:var(--muted)}
+
+    /* ── LEGEND ── */
+    #legend{
+      position:fixed;bottom:1.4rem;left:1.4rem;z-index:50;
+      background:var(--surface);border:1px solid var(--border);
+      border-radius:14px;padding:1rem 1.2rem;backdrop-filter:blur(20px);
+      min-width:200px;
+    }
+    .legend-title{font-family:'Space Grotesk',sans-serif;font-size:.7rem;font-weight:600;
+      text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.7rem}
+    .legend-item{
+      display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:8px;
+      cursor:pointer;transition:background .18s;margin-bottom:2px;
+    }
+    .legend-item:hover{background:rgba(255,255,255,0.05)}
+    .legend-item.active{background:rgba(255,255,255,0.08)}
+    .legend-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;box-shadow:0 0 6px currentColor}
+    .legend-label{font-size:.82rem;font-weight:500}
+    .legend-count{margin-left:auto;font-size:.72rem;color:var(--muted);
+      background:rgba(255,255,255,0.06);padding:1px 7px;border-radius:999px}
+
+    /* ── TOOLTIP ── */
+    #tooltip{
+      position:fixed;z-index:60;pointer-events:none;
+      background:rgba(10,14,30,0.92);border:1px solid rgba(255,255,255,0.12);
+      border-radius:10px;padding:8px 14px;
+      font-family:'Space Grotesk',sans-serif;font-size:.85rem;font-weight:600;
+      backdrop-filter:blur(12px);opacity:0;transition:opacity .15s;
+      white-space:nowrap;
+    }
+
+    /* ── SIDE PANEL ── */
+    #panel{
+      position:fixed;top:58px;right:0;bottom:0;z-index:50;
+      width:360px;
+      background:var(--surface);border-left:1px solid var(--border);
+      backdrop-filter:blur(24px);
+      transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);
+      display:flex;flex-direction:column;overflow:hidden;
+    }
+    #panel.open{transform:translateX(0)}
+
+    .panel-head{
+      padding:1.3rem 1.4rem 1rem;
+      border-bottom:1px solid var(--border);
+      display:flex;align-items:flex-start;justify-content:space-between;
+      flex-shrink:0;
+    }
+    .panel-module-name{
+      font-family:'Space Grotesk',sans-serif;font-size:1.25rem;font-weight:700;
+    }
+    .panel-base{font-size:.78rem;color:var(--muted);margin-top:3px;font-family:'JetBrains Mono',monospace}
+    .panel-close{
+      background:none;border:1px solid var(--border);color:var(--muted);
+      width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:1rem;
+      display:grid;place-items:center;transition:all .15s;flex-shrink:0;margin-left:8px;
+    }
+    .panel-close:hover{border-color:#fff;color:#fff}
+
+    .panel-body{overflow-y:auto;flex:1;padding:1rem 1.2rem}
+    .panel-body::-webkit-scrollbar{width:4px}
+    .panel-body::-webkit-scrollbar-track{background:transparent}
+    .panel-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:4px}
+
+    .panel-section-label{
+      font-size:.67rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+      color:var(--muted);margin:1rem 0 .5rem;
+    }
+
+    .api-card{
+      background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);
+      border-radius:10px;padding:.75rem 1rem;margin-bottom:.6rem;
+      transition:background .15s, border-color .15s;
+    }
+    .api-card:hover{background:rgba(255,255,255,0.07);border-color:rgba(255,255,255,0.14)}
+
+    .api-row{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+    .method-badge{
+      font-family:'JetBrains Mono',monospace;font-size:.68rem;font-weight:700;
+      padding:2px 8px;border-radius:5px;flex-shrink:0;
+    }
+    .GET   {background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(52,211,153,.3)}
+    .POST  {background:rgba(99,102,241,0.15);color:#818cf8;border:1px solid rgba(129,140,248,.3)}
+    .PUT   {background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,.3)}
+    .DELETE{background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(248,113,113,.3)}
+    .PATCH {background:rgba(168,85,247,0.15);color:#c084fc;border:1px solid rgba(192,132,252,.3)}
+
+    .api-path{font-family:'JetBrains Mono',monospace;font-size:.78rem;color:#e2e8f0}
+    .api-desc{font-size:.75rem;color:var(--muted);margin-top:2px}
+    .api-tags{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap}
+    .api-tag{
+      font-size:.62rem;font-weight:500;padding:1px 7px;border-radius:999px;
+      background:rgba(255,255,255,0.05);color:var(--muted);border:1px solid var(--border);
+    }
+    .api-tag.auth{background:rgba(251,191,36,0.1);color:#fbbf24;border-color:rgba(251,191,36,0.25)}
+    .api-tag.admin{background:rgba(239,68,68,0.1);color:#f87171;border-color:rgba(239,68,68,0.25)}
+    .api-tag.upload{background:rgba(6,182,212,0.1);color:#67e8f9;border-color:rgba(6,182,212,0.25)}
+
+    /* ── CENTRE LABEL ── */
+    #center-hint{
+      position:fixed;bottom:50%;left:50%;transform:translate(-50%,50%);
+      font-size:.72rem;color:rgba(255,255,255,0.2);pointer-events:none;
+      font-family:'Space Grotesk',sans-serif;letter-spacing:.08em;
+      text-transform:uppercase;z-index:10;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="galaxy"></canvas>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🌌</div>
+    <div class="logo-text">API <span>Galaxy</span></div>
+  </div>
+  <span class="header-hint">Hover to preview · Click a planet to explore its APIs</span>
+</header>
+
+<div id="legend">
+  <div class="legend-title">Modules</div>
+  <div id="legend-items"></div>
+</div>
+
+<div id="tooltip"></div>
+
+<div id="panel">
+  <div class="panel-head">
+    <div>
+      <div class="panel-module-name" id="panel-name"></div>
+      <div class="panel-base" id="panel-base"></div>
+    </div>
+    <button class="panel-close" id="panel-close">✕</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  DATA  — all modules + APIs
+// ═══════════════════════════════════════════════════════════════
+const MODULES = [
+  {
+    id: 'auth',
+    name: 'Auth',
+    base: '/api/auth',
+    color: '#818cf8',
+    glow: '#6366f1',
+    icon: '🔐',
+    desc: 'Authentication & profile management',
+    apis: [
+      { method:'POST', path:'/register',  desc:'Register a new student account', tags:[] },
+      { method:'POST', path:'/login',     desc:'Login and receive JWT cookie',    tags:[] },
+      { method:'PUT',  path:'/profile',   desc:'Update profile picture & ID card', tags:['auth','upload'] },
+      { method:'GET',  path:'/me',        desc:'Get currently logged-in user',    tags:['auth'] },
+    ],
+  },
+  {
+    id: 'application',
+    name: 'Application',
+    base: '/api/application',
+    color: '#34d399',
+    glow: '#10b981',
+    icon: '📋',
+    desc: 'Student council application submission',
+    apis: [
+      { method:'POST', path:'/apply', desc:'Submit a council position application (max 3 per student)', tags:['auth'] },
+      { method:'GET',  path:'/my',    desc:'Fetch all applications by the logged-in student', tags:['auth'] },
+    ],
+  },
+  {
+    id: 'admin',
+    name: 'Admin',
+    base: '/api/admin',
+    color: '#f87171',
+    glow: '#ef4444',
+    icon: '⚙️',
+    desc: 'Admin-only application management',
+    apis: [
+      { method:'GET',    path:'/applications',         desc:'List all applications with student details', tags:['auth','admin'] },
+      { method:'PUT',    path:'/status/:id',            desc:'Update application status (pending / accepted / rejected)', tags:['auth','admin'] },
+      { method:'PUT',    path:'/schedule/:id',          desc:'Schedule an interview (no overlap within 15 min)', tags:['auth','admin'] },
+      { method:'PUT',    path:'/interview-status/:id',  desc:'Set interview result (shortlisted / rejected)', tags:['auth','admin'] },
+      { method:'DELETE', path:'/application/:id',       desc:'Permanently delete an application', tags:['auth','admin'] },
+    ],
+  },
+  {
+    id: 'contact',
+    name: 'Contact',
+    base: '/api/contact',
+    color: '#67e8f9',
+    glow: '#06b6d4',
+    icon: '💬',
+    desc: 'Public contact form & admin inbox',
+    apis: [
+      { method:'POST', path:'/',  desc:'Send a public contact message', tags:[] },
+      { method:'GET',  path:'/',  desc:'Admin: retrieve all contact messages', tags:['auth','admin'] },
+    ],
+  },
+  {
+    id: 'stats',
+    name: 'Stats',
+    base: '/api/stats',
+    color: '#fbbf24',
+    glow: '#f59e0b',
+    icon: '📊',
+    desc: 'Analytics & dashboard metrics for Graphify',
+    apis: [
+      { method:'GET', path:'/dashboard', desc:'Aggregated stats: users, applications, pipeline, trends & more', tags:[] },
+    ],
+  },
+  {
+    id: 'users',
+    name: 'Users',
+    base: '/api/users',
+    color: '#c084fc',
+    glow: '#a855f7',
+    icon: '👥',
+    desc: 'CRUD management of user records',
+    apis: [
+      { method:'GET',    path:'/',    desc:'List all registered users', tags:[] },
+      { method:'POST',   path:'/',    desc:'Create a new user record',  tags:[] },
+      { method:'PUT',    path:'/:id', desc:'Update user by ID',         tags:[] },
+      { method:'DELETE', path:'/:id', desc:'Delete user by ID',         tags:[] },
+    ],
+  },
+];
+
+// ═══════════════════════════════════════════════════════════════
+//  CANVAS SETUP
+// ═══════════════════════════════════════════════════════════════
+const canvas = document.getElementById('galaxy');
+const ctx    = canvas.getContext('2d');
+
+let W, H, cx, cy;
+const resize = () => {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  cx = W / 2;
+  cy = H / 2;
+  initPlanets();
+};
+window.addEventListener('resize', resize);
+
+// ── Stars ────────────────────────────────────────────────────
+const STAR_COUNT = 420;
+const stars = [];
+const initStars = () => {
+  stars.length = 0;
+  for (let i = 0; i < STAR_COUNT; i++) {
+    stars.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: Math.random() * 1.2 + 0.2,
+      alpha: Math.random() * 0.6 + 0.2,
+      twinkleSpeed: Math.random() * 0.015 + 0.005,
+      twinkleOffset: Math.random() * Math.PI * 2,
+    });
+  }
+};
+
+// ── Planets ──────────────────────────────────────────────────
+const ORBITAL_RADII   = [120, 185, 255, 315, 370, 420];
+const PLANET_SIZES    = [18, 16, 19, 15, 14, 16];
+const ORBITAL_SPEEDS  = [0.0004, 0.00032, 0.00025, 0.0002, 0.00017, 0.00014];
+
+let planets = [];
+const initPlanets = () => {
+  planets = MODULES.map((mod, i) => {
+    const angle = (i / MODULES.length) * Math.PI * 2;
+    return {
+      mod,
+      orbitR: ORBITAL_RADII[i] * Math.min(W, H) / 900,
+      size:   PLANET_SIZES[i],
+      angle,
+      speed:  ORBITAL_SPEEDS[i] * (Math.random() > 0.5 ? 1 : -1),
+      pulseT: Math.random() * Math.PI * 2,
+    };
+  });
+};
+
+// ── Nebula dust clouds ────────────────────────────────────────
+const NEBULAS = [
+  { ox:0,   oy:0,   rx:160, ry:80,  angle:0.4,  alpha:0.07, color:'#6366f1' },
+  { ox:30,  oy:-20, rx:120, ry:60,  angle:2.1,  alpha:0.05, color:'#06b6d4' },
+  { ox:-40, oy:30,  rx:100, ry:50,  angle:1.0,  alpha:0.06, color:'#a855f7' },
+];
+
+// ═══════════════════════════════════════════════════════════════
+//  DRAW
+// ═══════════════════════════════════════════════════════════════
+let t = 0;
+let hoveredPlanet = null;
+let selectedPlanet = null;
+
+const drawStars = () => {
+  stars.forEach(s => {
+    const a = s.alpha * (0.6 + 0.4 * Math.sin(t * s.twinkleSpeed * 60 + s.twinkleOffset));
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${a})`;
+    ctx.fill();
+  });
+};
+
+const drawNebulas = () => {
+  NEBULAS.forEach(n => {
+    ctx.save();
+    ctx.translate(cx + n.ox, cy + n.oy);
+    ctx.rotate(n.angle);
+    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.max(n.rx, n.ry));
+    grad.addColorStop(0, n.color + '33');
+    grad.addColorStop(1, 'transparent');
+    ctx.scale(1, n.ry / n.rx);
+    ctx.beginPath();
+    ctx.arc(0, 0, n.rx, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.globalAlpha = n.alpha;
+    ctx.fill();
+    ctx.restore();
+  });
+};
+
+const drawCore = () => {
+  // Core glow layers
+  [
+    { r: 60, alpha: 0.08, color: '#818cf8' },
+    { r: 35, alpha: 0.18, color: '#a78bfa' },
+    { r: 18, alpha: 0.6,  color: '#c4b5fd' },
+    { r: 8,  alpha: 1.0,  color: '#fff'    },
+  ].forEach(({ r, alpha, color }) => {
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    g.addColorStop(0, color);
+    g.addColorStop(1, 'transparent');
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = g;
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+};
+
+const drawOrbit = (planet) => {
+  const isHov = hoveredPlanet === planet;
+  const isSel = selectedPlanet === planet;
+  ctx.beginPath();
+  ctx.arc(cx, cy, planet.orbitR, 0, Math.PI * 2);
+  ctx.strokeStyle = isHov || isSel
+    ? 'rgba(255,255,255,0.18)'
+    : 'rgba(255,255,255,0.055)';
+  ctx.lineWidth = isHov || isSel ? 1.5 : 1;
+  ctx.setLineDash([4, 8]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+};
+
+const drawPlanet = (planet, px, py) => {
+  const { mod, size } = planet;
+  const isHov = hoveredPlanet === planet;
+  const isSel = selectedPlanet === planet;
+  const pulse = 1 + 0.08 * Math.sin(t * 1.5 + planet.pulseT);
+  const drawSize = size * pulse * (isHov || isSel ? 1.25 : 1);
+
+  // Outer glow
+  const glowR = drawSize * 2.5;
+  const glow  = ctx.createRadialGradient(px, py, 0, px, py, glowR);
+  glow.addColorStop(0, mod.glow + '66');
+  glow.addColorStop(1, 'transparent');
+  ctx.beginPath();
+  ctx.arc(px, py, glowR, 0, Math.PI * 2);
+  ctx.fillStyle = glow;
+  ctx.fill();
+
+  // Body gradient
+  const body = ctx.createRadialGradient(px - drawSize * 0.3, py - drawSize * 0.3, 0, px, py, drawSize);
+  body.addColorStop(0, '#fff');
+  body.addColorStop(0.3, mod.color);
+  body.addColorStop(1, mod.glow + 'aa');
+  ctx.beginPath();
+  ctx.arc(px, py, drawSize, 0, Math.PI * 2);
+  ctx.fillStyle = body;
+  ctx.fill();
+
+  // Selection ring
+  if (isSel) {
+    ctx.beginPath();
+    ctx.arc(px, py, drawSize + 5, 0, Math.PI * 2);
+    ctx.strokeStyle = mod.color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // Icon
+  ctx.globalAlpha = 1;
+  ctx.font = `${Math.max(10, drawSize * 0.85)}px serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(mod.icon, px, py + 1);
+
+  // API count badge
+  const count = mod.apis.length;
+  const bx = px + drawSize * 0.8;
+  const by = py - drawSize * 0.8;
+  ctx.beginPath();
+  ctx.arc(bx, by, 7, 0, Math.PI * 2);
+  ctx.fillStyle = '#0a0e1a';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(bx, by, 7, 0, Math.PI * 2);
+  ctx.strokeStyle = mod.color;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.font = '700 8.5px Inter';
+  ctx.fillStyle = mod.color;
+  ctx.fillText(count, bx, by + 0.5);
+};
+
+// connection lines from core to selected planet
+const drawConnectLine = (px, py, color) => {
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(px, py);
+  const grad = ctx.createLinearGradient(cx, cy, px, py);
+  grad.addColorStop(0, 'rgba(255,255,255,0.35)');
+  grad.addColorStop(1, color + '44');
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 1.2;
+  ctx.setLineDash([5, 7]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+};
+
+let lastTime = 0;
+const loop = (ts) => {
+  const dt = ts - lastTime;
+  lastTime = ts;
+  t += dt * 0.001;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // bg
+  ctx.fillStyle = '#04060f';
+  ctx.fillRect(0, 0, W, H);
+
+  drawStars();
+  drawNebulas();
+
+  // orbit rings
+  planets.forEach(p => drawOrbit(p));
+
+  // update angles
+  planets.forEach(p => { p.angle += p.speed * dt; });
+
+  // draw connect line for selected
+  if (selectedPlanet) {
+    const sp = selectedPlanet;
+    const px = cx + sp.orbitR * Math.cos(sp.angle);
+    const py = cy + sp.orbitR * Math.sin(sp.angle);
+    drawConnectLine(px, py, sp.mod.color);
+  }
+
+  drawCore();
+
+  // draw planets
+  planets.forEach(p => {
+    const px = cx + p.orbitR * Math.cos(p.angle);
+    const py = cy + p.orbitR * Math.sin(p.angle);
+    p._px = px; p._py = py;
+    drawPlanet(p, px, py);
+  });
+
+  requestAnimationFrame(loop);
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  INTERACTION
+// ═══════════════════════════════════════════════════════════════
+const tooltip = document.getElementById('tooltip');
+const panel   = document.getElementById('panel');
+
+const hitTest = (mx, my) => {
+  for (const p of planets) {
+    const dx = mx - p._px, dy = my - p._py;
+    if (Math.sqrt(dx*dx + dy*dy) < p.size * 1.8) return p;
+  }
+  return null;
+};
+
+canvas.addEventListener('mousemove', e => {
+  const hit = hitTest(e.clientX, e.clientY);
+  hoveredPlanet = hit;
+  canvas.style.cursor = hit ? 'pointer' : 'default';
+  if (hit) {
+    tooltip.style.opacity = '1';
+    tooltip.style.left = (e.clientX + 16) + 'px';
+    tooltip.style.top  = (e.clientY - 10) + 'px';
+    tooltip.innerHTML  = `<span style="color:${hit.mod.color}">${hit.mod.icon} ${hit.mod.name}</span> &nbsp;<span style="color:#64748b;font-weight:400;font-size:.75rem">${hit.mod.apis.length} API${hit.mod.apis.length!==1?'s':''}</span>`;
+  } else {
+    tooltip.style.opacity = '0';
+  }
+});
+
+canvas.addEventListener('mouseleave', () => { tooltip.style.opacity = '0'; hoveredPlanet = null; });
+
+canvas.addEventListener('click', e => {
+  const hit = hitTest(e.clientX, e.clientY);
+  if (hit) {
+    openPanel(hit);
+  } else {
+    closePanel();
+  }
+});
+
+// ── Panel ────────────────────────────────────────────────────
+const openPanel = (planet) => {
+  selectedPlanet = planet;
+  const mod = planet.mod;
+
+  document.getElementById('panel-name').textContent = `${mod.icon}  ${mod.name}`;
+  document.getElementById('panel-name').style.color = mod.color;
+  document.getElementById('panel-base').textContent = `Base URL: ${mod.base}`;
+
+  const body = document.getElementById('panel-body');
+  body.innerHTML = `
+    <p style="font-size:.8rem;color:#94a3b8;margin-bottom:1rem">${mod.desc}</p>
+    <div class="panel-section-label">${mod.apis.length} Endpoint${mod.apis.length!==1?'s':''}</div>
+    ${mod.apis.map(api => `
+      <div class="api-card">
+        <div class="api-row">
+          <span class="method-badge ${api.method}">${api.method}</span>
+          <span class="api-path">${mod.base}${api.path}</span>
+        </div>
+        <div class="api-desc">${api.desc}</div>
+        ${api.tags.length ? `
+          <div class="api-tags">
+            ${api.tags.map(tag => `<span class="api-tag ${tag}">${tag === 'auth' ? '🔑 Auth required' : tag === 'admin' ? '🛡 Admin only' : tag === 'upload' ? '📎 File upload' : tag}</span>`).join('')}
+          </div>` : ''}
+      </div>
+    `).join('')}
+  `;
+
+  panel.classList.add('open');
+  highlightLegend(mod.id);
+};
+
+const closePanel = () => {
+  panel.classList.remove('open');
+  selectedPlanet = null;
+  clearLegendHighlight();
+};
+
+document.getElementById('panel-close').addEventListener('click', closePanel);
+
+// ── Legend ───────────────────────────────────────────────────
+const legendContainer = document.getElementById('legend-items');
+
+const buildLegend = () => {
+  legendContainer.innerHTML = MODULES.map(mod => `
+    <div class="legend-item" data-id="${mod.id}" onclick="legendClick('${mod.id}')">
+      <span class="legend-dot" style="background:${mod.color};color:${mod.color}"></span>
+      <span class="legend-label">${mod.icon} ${mod.name}</span>
+      <span class="legend-count">${mod.apis.length}</span>
+    </div>
+  `).join('');
+};
+
+window.legendClick = (id) => {
+  const planet = planets.find(p => p.mod.id === id);
+  if (!planet) return;
+  if (selectedPlanet && selectedPlanet.mod.id === id) { closePanel(); return; }
+  openPanel(planet);
+};
+
+const highlightLegend = (id) => {
+  document.querySelectorAll('.legend-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.id === id);
+  });
+};
+const clearLegendHighlight = () => {
+  document.querySelectorAll('.legend-item').forEach(el => el.classList.remove('active'));
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════════════════
+resize();
+initStars();
+buildLegend();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

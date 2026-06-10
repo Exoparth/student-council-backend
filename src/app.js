@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
+const path = require("path");
 
 const authRoutes = require("./routes/auth.routes");
 const applicationRoutes = require("./routes/application.routes");
@@ -20,6 +21,13 @@ app.use(
     credentials: true,
   }),
 );
+
+// Serve Graphify analytics dashboard
+app.use("/graphify", express.static(path.join(__dirname, "graphify")));
+
+app.get("/", (req, res) => {
+  res.send("API is running 🚀");
+});
 
 app.use("/api/auth", authRoutes);
 app.use("/api/application", applicationRoutes);
